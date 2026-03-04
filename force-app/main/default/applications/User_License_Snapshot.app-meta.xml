@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+  <description>Read-only dashboard for active users, licenses, profiles, and login trends.</description>
+  <formFactors>Large</formFactors>
+  <label>User &amp; License Snapshot</label>
+  <navType>Standard</navType>
+  <tabs>User_License_Snapshot</tabs>
+  <uiType>Lightning</uiType>
+</CustomApplication>

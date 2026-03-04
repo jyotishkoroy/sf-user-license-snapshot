@@ -1,0 +1,296 @@
+<template>
+  <section class="shell">
+    <header class="hero">
+      <div class="heroLeft">
+        <div class="title">User &amp; License Snapshot</div>
+        <div class="subtitle">Active users · licenses · profiles · login trends</div>
+      </div>
+      <div class="heroRight">
+        <span class={envPillClass}>{envLabel}</span>
+        <span class="pill pillMuted">v{info.version}</span>
+        <lightning-button variant="neutral" label="Refresh" onclick={refreshAll} disabled={busy}></lightning-button>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class={tabClassOverview} onclick={goOverview}>Overview</button>
+      <button class={tabClassUsers} onclick={goUsers}>Users</button>
+      <button class={tabClassLicenses} onclick={goLicenses}>Licenses</button>
+      <button class={tabClassProfiles} onclick={goProfiles}>Profiles</button>
+      <button class={tabClassLogins} onclick={goLogins}>Logins</button>
+    </div>
+
+    <div class="content">
+      <!-- Overview -->
+      <template if:true={isOverview}>
+        <div class="grid2">
+          <article class="card">
+            <div class="cardHeader">
+              <div class="cardTitle">Summary</div>
+              <div class="pills">
+                <span class="pill pillOk">{summary.activeUsers} active</span>
+                <span class="pill pillMuted">{summary.inactiveUsers} inactive</span>
+              </div>
+            </div>
+            <div class="cardBody">
+              <div class="kv">
+                <div class="kvRow"><div class="k">Total users</div><div class="v">{summary.totalUsers}</div></div>
+                <div class="kvRow"><div class="k">Profiles</div><div class="v">{summary.profiles}</div></div>
+                <div class="kvRow"><div class="k">License types</div><div class="v">{summary.licenses}</div></div>
+                <div class="kvRow">
+                  <div class="k">Login trends</div>
+                  <div class="v">
+                    <span class={loginTrendPillClass}>{summary.loginTrendStatus}</span>
+                    <span class="muted">{summary.loginTrendMessage}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="note">
+                Read-only dashboard. No org data is stored by the app.
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="cardHeader">
+              <div class="cardTitle">Quick look</div>
+              <div class="pills">
+                <span class="pill pillMuted">top usage</span>
+              </div>
+            </div>
+            <div class="cardBody">
+              <template if:true={topLicense}>
+                <div class="callout">
+                  <div class="calloutTitle">Most utilized license</div>
+                  <div class="calloutText">
+                    <div class="mono wrap">{topLicense.name}</div>
+                    <div class="big">{topLicense.pctUsed}% used</div>
+                    <div class="muted">{topLicense.used}/{topLicense.total} used</div>
+                  </div>
+                </div>
+              </template>
+              <template if:false={topLicense}>
+                <div class="empty">No license data loaded yet.</div>
+              </template>
+
+              <template if:true={loginSparkPoints}>
+                <div class="sectionTitle slds-m-top_medium">Last 30 days logins</div>
+                <div class="sparkWrap">
+                  <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none">
+                    <polyline points={loginSparkPoints} class="sparkLine"></polyline>
+                  </svg>
+                  <div class="muted small">{loginSparkLabel}</div>
+                </div>
+              </template>
+              <template if:false={loginSparkPoints}>
+                <div class="empty slds-m-top_medium">Login sparkline unavailable.</div>
+              </template>
+            </div>
+          </article>
+        </div>
+      </template>
+
+      <!-- Users -->
+      <template if:true={isUsers}>
+        <article class="card">
+          <div class="cardHeader">
+            <div class="cardTitle">Recent active users</div>
+            <div class="pills">
+              <span class="pill">{userRowsFiltered.length} shown</span>
+              <lightning-button variant="brand" label="Export CSV" onclick={exportUsers} disabled={busyOrNoUsers}></lightning-button>
+            </div>
+          </div>
+          <div class="cardBody">
+            <div class="controls">
+              <lightning-input type="search" label="Search" value={userSearch} onchange={onUserSearch} placeholder="name, username, profile, type..."></lightning-input>
+              <lightning-combobox label="Sort" value={userSortKey} options={userSortOptions} onchange={onUserSortKey}></lightning-combobox>
+              <lightning-combobox label="Direction" value={userSortDir} options={sortDirOptions} onchange={onUserSortDir}></lightning-combobox>
+            </div>
+
+            <div class="tableWrap slds-m-top_small">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Profile</th>
+                    <th>Type</th>
+                    <th>Last login</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template for:each={userRowsFiltered} for:item="u">
+                    <tr key={u.id}>
+                      <td class="wrap">{u.name}</td>
+                      <td class="mono wrap">{u.username}</td>
+                      <td class="wrap">{u.profileName}</td>
+                      <td>{u.userType}</td>
+                      <td>{u.lastLoginFmt}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <template if:false={userRowsFiltered.length}>
+              <div class="empty slds-m-top_small">No matching users.</div>
+            </template>
+          </div>
+        </article>
+      </template>
+
+      <!-- Licenses -->
+      <template if:true={isLicenses}>
+        <article class="card">
+          <div class="cardHeader">
+            <div class="cardTitle">License utilization</div>
+            <div class="pills">
+              <span class="pill">{licenseRowsFiltered.length} shown</span>
+              <lightning-button variant="brand" label="Export CSV" onclick={exportLicenses} disabled={busyOrNoLicenses}></lightning-button>
+            </div>
+          </div>
+          <div class="cardBody">
+            <div class="controls">
+              <lightning-input type="search" label="Search" value={licenseSearch} onchange={onLicenseSearch} placeholder="license name..."></lightning-input>
+              <lightning-combobox label="Sort" value={licenseSortKey} options={licenseSortOptions} onchange={onLicenseSortKey}></lightning-combobox>
+              <lightning-combobox label="Direction" value={licenseSortDir} options={sortDirOptions} onchange={onLicenseSortDir}></lightning-combobox>
+            </div>
+
+            <div class="tableWrap slds-m-top_small">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>License</th>
+                    <th class="num">Total</th>
+                    <th class="num">Used</th>
+                    <th class="num">Remaining</th>
+                    <th class="num">% Used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template for:each={licenseRowsFiltered} for:item="l">
+                    <tr key={l.name}>
+                      <td class="wrap">{l.name}</td>
+                      <td class="num">{l.total}</td>
+                      <td class="num">{l.used}</td>
+                      <td class="num">{l.remaining}</td>
+                      <td class="num">
+                        <span class={l.pctClass}>{l.pctUsed}%</span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <template if:false={licenseRowsFiltered.length}>
+              <div class="empty slds-m-top_small">No matching licenses.</div>
+            </template>
+          </div>
+        </article>
+      </template>
+
+      <!-- Profiles -->
+      <template if:true={isProfiles}>
+        <article class="card">
+          <div class="cardHeader">
+            <div class="cardTitle">Active users by profile</div>
+            <div class="pills">
+              <span class="pill">{profileRowsFiltered.length} shown</span>
+              <lightning-button variant="brand" label="Export CSV" onclick={exportProfiles} disabled={busyOrNoProfiles}></lightning-button>
+            </div>
+          </div>
+          <div class="cardBody">
+            <div class="controls">
+              <lightning-input type="search" label="Search" value={profileSearch} onchange={onProfileSearch} placeholder="profile name..."></lightning-input>
+              <lightning-combobox label="Sort" value={profileSortKey} options={profileSortOptions} onchange={onProfileSortKey}></lightning-combobox>
+              <lightning-combobox label="Direction" value={profileSortDir} options={sortDirOptions} onchange={onProfileSortDir}></lightning-combobox>
+            </div>
+
+            <div class="tableWrap slds-m-top_small">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th class="num">Active users</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template for:each={profileRowsFiltered} for:item="p">
+                    <tr key={p.name}>
+                      <td class="wrap">{p.name}</td>
+                      <td class="num">{p.activeUsers}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <template if:false={profileRowsFiltered.length}>
+              <div class="empty slds-m-top_small">No matching profiles.</div>
+            </template>
+          </div>
+        </article>
+      </template>
+
+      <!-- Logins -->
+      <template if:true={isLogins}>
+        <article class="card">
+          <div class="cardHeader">
+            <div class="cardTitle">Login trends</div>
+            <div class="pills">
+              <span class="pill pillMuted">{loginModeLabel}</span>
+              <lightning-button variant="neutral" label="Load 7 days" onclick={load7} disabled={busy}></lightning-button>
+              <lightning-button class="slds-m-left_x-small" variant="neutral" label="Load 30 days" onclick={load30} disabled={busy}></lightning-button>
+              <lightning-button class="slds-m-left_x-small" variant="brand" label="Export CSV" onclick={exportLogins} disabled={busyOrNoLogins}></lightning-button>
+            </div>
+          </div>
+
+          <div class="cardBody">
+            <template if:true={summary.loginTrendStatus}>
+              <div class="note">
+                <span class={loginTrendPillClass}>{summary.loginTrendStatus}</span>
+                <span class="muted">{summary.loginTrendMessage}</span>
+              </div>
+            </template>
+
+            <div class="tableWrap slds-m-top_small">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th class="num">Logins</th>
+                    <th class="num">Unique users</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template for:each={loginRows} for:item="p">
+                    <tr key={p.day}>
+                      <td>{p.day}</td>
+                      <td class="num">{p.logins}</td>
+                      <td class="num">{p.uniqueUsers}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <template if:false={loginRows.length}>
+              <div class="empty slds-m-top_small">No login trend data (or access restricted).</div>
+            </template>
+          </div>
+        </article>
+      </template>
+    </div>
+
+    <template if:true={busy}>
+      <div class="mask">
+        <div class="maskCard">
+          <div class="spinner"></div>
+          <div class="maskText">{busyLabel}</div>
+        </div>
+      </div>
+    </template>
+  </section>
+</template>
